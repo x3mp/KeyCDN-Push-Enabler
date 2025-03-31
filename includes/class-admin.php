@@ -71,7 +71,7 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         add_action('admin_init', array($this, 'register_settings'));
         
         // Add settings link to plugins page
-        add_filter('plugin_action_links_' . keycdn_push_enabler_BASENAME, array($this, 'add_settings_link'));
+        add_filter('plugin_action_links_' . KEYCDN_PUSH_ENABLER_BASENAME, array($this, 'add_settings_link'));
         
         // Add admin notices
         add_action('admin_notices', array($this, 'admin_notices'));
