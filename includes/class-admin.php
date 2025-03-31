@@ -71,7 +71,7 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         add_action('admin_init', array($this, 'register_settings'));
         
         // Add settings link to plugins page
-        add_filter('plugin_action_links_' . KEYCDN_PUSH_ADDON_BASENAME, array($this, 'add_settings_link'));
+        add_filter('plugin_action_links_' . KEYCDN_PUSH_ENABLER_BASENAME, array($this, 'add_settings_link'));
         
         // Add admin notices
         add_action('admin_notices', array($this, 'admin_notices'));
@@ -657,17 +657,17 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         // Enqueue styles
         wp_enqueue_style(
             'keycdn-push-enabler-admin',
-            KEYCDN_PUSH_ADDON_URL . 'assets/css/admin.css',
+            KEYCDN_PUSH_ENABLER_URL . 'assets/css/admin.css',
             array(),
-            KEYCDN_PUSH_ADDON_VERSION
+            KEYCDN_PUSH_ENABLER_VERSION
         );
         
         // Enqueue scripts
         wp_enqueue_script(
             'keycdn-push-enabler-admin',
-            KEYCDN_PUSH_ADDON_URL . 'assets/js/admin.js',
+            KEYCDN_PUSH_ENABLER_URL . 'assets/js/admin.js',
             array('jquery'),
-            KEYCDN_PUSH_ADDON_VERSION,
+            KEYCDN_PUSH_ENABLER_VERSION,
             true
         );
         
