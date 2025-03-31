@@ -1,0 +1,46 @@
+/**
+ * Admin CSS for KeyCDN Push Zone Addon
+ */
+
+ .keycdn-push-enabler-progress-wrapper {
+    margin: 20px 0;
+    padding: 15px;
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.keycdn-push-enabler-progress {
+    height: 20px;
+    background-color: #f0f0f1;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    overflow: hidden;
+}
+
+.keycdn-push-enabler-progress-bar {
+    height: 100%;
+    background-color: #2271b1;
+    transition: width 0.3s ease;
+}
+
+.keycdn-push-enabler-progress-info {
+    margin-bottom: 15px;
+}
+
+.keycdn-push-enabler-stalled {
+    color: #b32d2e;
+    font-weight: bold;
+}
+
+.keycdn-push-enabler-actions {
+    margin-top: 30px;
+    padding: 15px;
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.keycdn-push-enabler-actions .button {
+    margin-right: 10px;
+}
