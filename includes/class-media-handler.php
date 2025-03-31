@@ -69,6 +69,11 @@ class KeyCDN_Push_Enabler_Addon_Media_Handler {
             return;
         }
 
+        // Check if this file is in a custom directory that should be processed
+        if (!$this->should_push_file($file_path)) {
+            return;
+        }
+
         // Get relative path to upload directory
         $upload_dir = wp_upload_dir();
         $relative_path = str_replace($upload_dir['basedir'] . '/', '', $file_path);
@@ -90,6 +95,52 @@ class KeyCDN_Push_Enabler_Addon_Media_Handler {
                 }
             }
         }
+    }
+    
+    /**
+     * Check if a file should be pushed based on custom directory settings
+     *
+     * @param string $file_path File path
+     * @return bool True if file should be pushed, false otherwise
+     */
+    private function should_push_file($file_path) {
+        $relative_path = str_replace(ABSPATH, '', $file_path);
+        $relative_dir = dirname($relative_path);
+        $relative_dir = trailingslashit($relative_dir);
+        
+        // Get custom directories setting
+        $options = get_option('keycdn_push_enabler', array());
+        $include_default_upload_dir = isset($options['include_default_upload_dir']) ? $options['include_default_upload_dir'] : true;
+        $custom_directories = isset($options['custom_directories']) ? $options['custom_directories'] : array();
+        
+        // If no custom directories are set, use default behavior
+        if (empty($custom_directories) && $include_default_upload_dir) {
+            return true;
+        }
+        
+        // Check if this file is in the default upload directory
+        $upload_dir = wp_upload_dir();
+        $relative_upload_dir = str_replace(ABSPATH, '', $upload_dir['basedir']);
+        $relative_upload_dir = trailingslashit($relative_upload_dir);
+        
+        if ($include_default_upload_dir && strpos($relative_dir, $relative_upload_dir) === 0) {
+            return true;
+        }
+        
+        // Check if this file is in one of the custom directories
+        foreach ($custom_directories as $custom_dir => $enabled) {
+            if (!$enabled) {
+                continue;
+            }
+            
+            $custom_dir = trailingslashit($custom_dir);
+            
+            if (strpos($relative_dir, $custom_dir) === 0) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     /**

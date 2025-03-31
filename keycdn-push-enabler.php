@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: KeyCDN Push Enabler Addon
- * Plugin URI: https://your-website.com/keycdn-push-addon
+ * Plugin URI: https://x3mp.com
  * Description: Add-on for the CDN Enabler plugin that adds Push Zone functionality to KeyCDN integration
  * Author: x3mp
  * Author URI: https://x3mp.com
@@ -20,11 +20,11 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('keycdn_push_enabler_VERSION', '1.0.0');
-define('keycdn_push_enabler_FILE', __FILE__);
-define('keycdn_push_enabler_DIR', plugin_dir_path(__FILE__));
-define('keycdn_push_enabler_URL', plugin_dir_url(__FILE__));
-define('keycdn_push_enabler_BASENAME', plugin_basename(__FILE__));
+define('KEYCDN_PUSH_ENABLER_VERSION', '1.0.0');
+define('KEYCDN_PUSH_ENABLER_FILE', __FILE__);
+define('KEYCDN_PUSH_ENABLER_DIR', plugin_dir_path(__FILE__));
+define('KEYCDN_PUSH_ENABLER_URL', plugin_dir_url(__FILE__));
+define('KEYCDN_PUSH_ENABLER_BASENAME', plugin_basename(__FILE__));
 
 /**
  * Main plugin class
@@ -120,12 +120,12 @@ class KeyCDN_Push_Enabler_Addon {
      */
     private function load_dependencies() {
         // Load component classes
-        require_once keycdn_push_enabler_DIR . 'includes/class-compatibility.php';
-        require_once keycdn_push_enabler_DIR . 'includes/class-api-handler.php';
-        require_once keycdn_push_enabler_DIR . 'includes/class-file-handler.php';
-        require_once keycdn_push_enabler_DIR . 'includes/class-media-handler.php';
-        require_once keycdn_push_enabler_DIR . 'includes/class-cron-tasks.php';
-        require_once keycdn_push_enabler_DIR . 'includes/class-admin.php';
+        require_once KEYCDN_PUSH_ENABLER_DIR . 'includes/class-compatibility.php';
+        require_once KEYCDN_PUSH_ENABLER_DIR . 'includes/class-api-handler.php';
+        require_once KEYCDN_PUSH_ENABLER_DIR . 'includes/class-file-handler.php';
+        require_once KEYCDN_PUSH_ENABLER_DIR . 'includes/class-media-handler.php';
+        require_once KEYCDN_PUSH_ENABLER_DIR . 'includes/class-cron-tasks.php';
+        require_once KEYCDN_PUSH_ENABLER_DIR . 'includes/class-admin.php';
     }
 
     /**
@@ -167,7 +167,8 @@ class KeyCDN_Push_Enabler_Addon {
             $this->admin = new KeyCDN_Push_Enabler_Addon_Admin(
                 $this->options,
                 $this->api_handler,
-                $this->cron_tasks
+                $this->cron_tasks,
+                $this->file_handler
             );
         }
     }
@@ -185,10 +186,10 @@ class KeyCDN_Push_Enabler_Addon {
         add_action('plugins_loaded', array($this, 'load_text_domain'));
 
         // Register activation hook
-        register_activation_hook(keycdn_push_enabler_FILE, array($this, 'activate'));
+        register_activation_hook(KEYCDN_PUSH_ENABLER_FILE, array($this, 'activate'));
 
         // Register deactivation hook
-        register_deactivation_hook(keycdn_push_enabler_FILE, array($this, 'deactivate'));
+        register_deactivation_hook(KEYCDN_PUSH_ENABLER_FILE, array($this, 'deactivate'));
     }
 
     /**
@@ -198,7 +199,7 @@ class KeyCDN_Push_Enabler_Addon {
         load_plugin_textdomain(
             'keycdn-push-addon',
             false,
-            dirname(plugin_basename(keycdn_push_enabler_FILE)) . '/languages/'
+            dirname(plugin_basename(KEYCDN_PUSH_ENABLER_FILE)) . '/languages/'
         );
     }
 
@@ -212,7 +213,11 @@ class KeyCDN_Push_Enabler_Addon {
                 'api_key' => '',
                 'push_zone_id' => '',
                 'push_static_files' => true,
-                'push_on_settings_update' => false
+                'push_on_settings_update' => false,
+                'custom_directories' => array(
+                    'wp-content/uploads' => true,  // Default uploads directory
+                ),
+                'include_default_upload_dir' => true
             );
             
             add_option('keycdn_push_enabler', $default_options);

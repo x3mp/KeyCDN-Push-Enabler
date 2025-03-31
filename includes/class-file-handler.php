@@ -222,6 +222,11 @@ class KeyCDN_Push_Enabler_Addon_File_Handler {
             }
         }
         
+        // Check if we should scan this directory based on custom directory settings
+        if (!$this->should_scan_directory($dir)) {
+            return;
+        }
+        
         // Open directory
         $handle = opendir($dir);
         if (!$handle) {
@@ -294,6 +299,11 @@ class KeyCDN_Push_Enabler_Addon_File_Handler {
             }
         }
         
+        // Check if we should scan this directory based on custom directory settings
+        if (!$this->should_scan_directory($dir)) {
+            return;
+        }
+        
         // Open directory
         $handle = opendir($dir);
         if (!$handle) {
@@ -324,6 +334,51 @@ class KeyCDN_Push_Enabler_Addon_File_Handler {
         }
         
         closedir($handle);
+    }
+    
+    /**
+     * Check if a directory should be scanned based on custom directory settings
+     *
+     * @param string $dir Directory path
+     * @return bool True if directory should be scanned, false otherwise
+     */
+    private function should_scan_directory($dir) {
+        $relative_dir = str_replace(ABSPATH, '', $dir);
+        $relative_dir = trailingslashit($relative_dir);
+        
+        // Get custom directories setting
+        $options = get_option('keycdn_push_enabler', array());
+        $include_default_upload_dir = isset($options['include_default_upload_dir']) ? $options['include_default_upload_dir'] : true;
+        $custom_directories = isset($options['custom_directories']) ? $options['custom_directories'] : array();
+        
+        // If no custom directories are set, use default behavior
+        if (empty($custom_directories) && $include_default_upload_dir) {
+            return true;
+        }
+        
+        // Check if this directory is the default upload directory or a subdirectory of it
+        $upload_dir = wp_upload_dir();
+        $relative_upload_dir = str_replace(ABSPATH, '', $upload_dir['basedir']);
+        $relative_upload_dir = trailingslashit($relative_upload_dir);
+        
+        if ($include_default_upload_dir && strpos($relative_dir, $relative_upload_dir) === 0) {
+            return true;
+        }
+        
+        // Check if this directory is one of the custom directories or a subdirectory of one
+        foreach ($custom_directories as $custom_dir => $enabled) {
+            if (!$enabled) {
+                continue;
+            }
+            
+            $custom_dir = trailingslashit($custom_dir);
+            
+            if (strpos($relative_dir, $custom_dir) === 0) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     /**

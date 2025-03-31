@@ -34,6 +34,13 @@ class KeyCDN_Push_Enabler_Addon_Admin {
      * @var KeyCDN_Push_Enabler_Addon_Cron_Tasks
      */
     private $cron_tasks;
+    
+    /**
+     * File handler
+     *
+     * @var KeyCDN_Push_Enabler_Addon_File_Handler
+     */
+    private $file_handler;
 
     /**
      * Constructor
@@ -41,11 +48,13 @@ class KeyCDN_Push_Enabler_Addon_Admin {
      * @param array $options Plugin options
      * @param KeyCDN_Push_Enabler_Addon_API_Handler $api_handler API handler
      * @param KeyCDN_Push_Enabler_Addon_Cron_Tasks $cron_tasks Cron tasks handler
+     * @param KeyCDN_Push_Enabler_Addon_File_Handler $file_handler File handler
      */
-    public function __construct($options, $api_handler, $cron_tasks) {
+    public function __construct($options, $api_handler, $cron_tasks, $file_handler) {
         $this->options = $options;
         $this->api_handler = $api_handler;
         $this->cron_tasks = $cron_tasks;
+        $this->file_handler = $file_handler;
 
         // Initialize admin hooks
         $this->init();
@@ -91,7 +100,7 @@ class KeyCDN_Push_Enabler_Addon_Admin {
             'KeyCDN Push Zone Addon', 
             'KeyCDN Push Zone', 
             'manage_options', 
-            'keycdn-push-enabler', 
+            'keycdn-push-addon', 
             array($this, 'render_settings_page')
         );
     }
@@ -105,64 +114,96 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         // KeyCDN API settings section
         add_settings_section(
             'keycdn_push_enabler_api',
-            __('KeyCDN API Settings', 'keycdn-push-enabler'),
+            __('KeyCDN API Settings', 'keycdn-push-addon'),
             array($this, 'render_api_section'),
-            'keycdn-push-enabler'
+            'keycdn-push-addon'
         );
         
         add_settings_field(
             'api_key',
-            __('API Key', 'keycdn-push-enabler'),
+            __('API Key', 'keycdn-push-addon'),
             array($this, 'render_text_field'),
-            'keycdn-push-enabler',
+            'keycdn-push-addon',
             'keycdn_push_enabler_api',
             array(
                 'id' => 'api_key',
-                'label' => __('Your KeyCDN API key', 'keycdn-push-enabler')
+                'label' => __('Your KeyCDN API key', 'keycdn-push-addon')
             )
         );
         
         // Push Zone settings section
         add_settings_section(
             'keycdn_push_enabler_push_zone',
-            __('Push Zone Settings', 'keycdn-push-enabler'),
+            __('Push Zone Settings', 'keycdn-push-addon'),
             array($this, 'render_push_zone_section'),
-            'keycdn-push-enabler'
+            'keycdn-push-addon'
         );
         
         add_settings_field(
             'push_zone_id',
-            __('Push Zone ID', 'keycdn-push-enabler'),
+            __('Push Zone ID', 'keycdn-push-addon'),
             array($this, 'render_text_field'),
-            'keycdn-push-enabler',
+            'keycdn-push-addon',
             'keycdn_push_enabler_push_zone',
             array(
                 'id' => 'push_zone_id',
-                'label' => __('Your KeyCDN Push Zone ID', 'keycdn-push-enabler')
+                'label' => __('Your KeyCDN Push Zone ID', 'keycdn-push-addon')
             )
         );
         
         add_settings_field(
             'push_static_files',
-            __('Push Static Files', 'keycdn-push-enabler'),
+            __('Push Static Files', 'keycdn-push-addon'),
             array($this, 'render_checkbox_field'),
-            'keycdn-push-enabler',
+            'keycdn-push-addon',
             'keycdn_push_enabler_push_zone',
             array(
                 'id' => 'push_static_files',
-                'label' => __('Automatically push static files when themes or plugins are updated', 'keycdn-push-enabler')
+                'label' => __('Automatically push static files when themes or plugins are updated', 'keycdn-push-addon')
             )
         );
         
         add_settings_field(
             'push_on_settings_update',
-            __('Push on Settings Update', 'keycdn-push-enabler'),
+            __('Push on Settings Update', 'keycdn-push-addon'),
             array($this, 'render_checkbox_field'),
-            'keycdn-push-enabler',
+            'keycdn-push-addon',
             'keycdn_push_enabler_push_zone',
             array(
                 'id' => 'push_on_settings_update',
-                'label' => __('Push all files when settings are updated', 'keycdn-push-enabler')
+                'label' => __('Push all files when settings are updated', 'keycdn-push-addon')
+            )
+        );
+        
+        // Directory Settings section
+        add_settings_section(
+            'keycdn_push_enabler_directories',
+            __('Directory Settings', 'keycdn-push-addon'),
+            array($this, 'render_directories_section'),
+            'keycdn-push-addon'
+        );
+        
+        add_settings_field(
+            'include_default_upload_dir',
+            __('Default Upload Directory', 'keycdn-push-addon'),
+            array($this, 'render_checkbox_field'),
+            'keycdn-push-addon',
+            'keycdn_push_enabler_directories',
+            array(
+                'id' => 'include_default_upload_dir',
+                'label' => __('Include default WordPress upload directory', 'keycdn-push-addon')
+            )
+        );
+        
+        add_settings_field(
+            'custom_directories',
+            __('Custom Directories', 'keycdn-push-addon'),
+            array($this, 'render_custom_directories_field'),
+            'keycdn-push-addon',
+            'keycdn_push_enabler_directories',
+            array(
+                'id' => 'custom_directories',
+                'label' => __('Specify additional directories to push (relative to WordPress root)', 'keycdn-push-addon')
             )
         );
     }
@@ -184,10 +225,65 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         $output['push_static_files'] = isset($input['push_static_files']) ? (bool) $input['push_static_files'] : false;
         $output['push_on_settings_update'] = isset($input['push_on_settings_update']) ? (bool) $input['push_on_settings_update'] : false;
         
-        // Check if push_on_settings_update is enabled and settings changed
-        if ($output['push_on_settings_update'] && 
-            ($output['api_key'] !== $this->options['api_key'] || 
-             $output['push_zone_id'] !== $this->options['push_zone_id'])) {
+        // Directory settings
+        $output['include_default_upload_dir'] = isset($input['include_default_upload_dir']) ? (bool) $input['include_default_upload_dir'] : true;
+        
+        // Custom directories
+        $output['custom_directories'] = array();
+        
+        // Process custom directories from keys array to maintain order
+        if (isset($input['custom_directories_keys']) && is_array($input['custom_directories_keys'])) {
+            foreach ($input['custom_directories_keys'] as $directory) {
+                $directory = sanitize_text_field($directory);
+                $enabled = isset($input['custom_directories'][$directory]) ? (bool) $input['custom_directories'][$directory] : false;
+                $output['custom_directories'][$directory] = $enabled;
+            }
+        }
+        
+        // If custom directories were submitted directly
+        if (isset($input['custom_directories']) && is_array($input['custom_directories'])) {
+            foreach ($input['custom_directories'] as $directory => $enabled) {
+                // Skip if already processed through keys array
+                if (isset($output['custom_directories'][$directory])) {
+                    continue;
+                }
+                
+                $directory = sanitize_text_field($directory);
+                $output['custom_directories'][$directory] = (bool) $enabled;
+            }
+        }
+        
+        // Check if any settings have changed that would require a push
+        $settings_changed = false;
+        
+        if ($output['api_key'] !== $this->options['api_key'] || 
+            $output['push_zone_id'] !== $this->options['push_zone_id']) {
+            $settings_changed = true;
+        }
+        
+        // Check if directory settings changed
+        $old_include_default = isset($this->options['include_default_upload_dir']) ? $this->options['include_default_upload_dir'] : true;
+        $old_custom_directories = isset($this->options['custom_directories']) ? $this->options['custom_directories'] : array();
+        
+        if ($output['include_default_upload_dir'] !== $old_include_default) {
+            $settings_changed = true;
+        }
+        
+        if (count($output['custom_directories']) !== count($old_custom_directories)) {
+            $settings_changed = true;
+        } else {
+            foreach ($output['custom_directories'] as $directory => $enabled) {
+                if (!isset($old_custom_directories[$directory]) || $old_custom_directories[$directory] !== $enabled) {
+                    $settings_changed = true;
+                    break;
+                }
+            }
+        }
+        
+        // Schedule push if needed
+        if ($output['push_on_settings_update'] && $settings_changed) {
+            // Clear file cache to ensure new directory settings are used
+            $this->file_handler->clear_file_cache();
             
             // Schedule push all files
             $this->cron_tasks->schedule_push_static_files();
@@ -195,6 +291,7 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         
         return $output;
     }
+        
 
     /**
      * Render settings page
@@ -204,35 +301,35 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         $progress = $this->cron_tasks->get_push_progress();
         ?>
         <div class="wrap">
-            <h1><?php _e('KeyCDN Push Zone Addon Settings', 'keycdn-push-enabler'); ?></h1>
+            <h1><?php _e('KeyCDN Push Zone Addon Settings', 'keycdn-push-addon'); ?></h1>
             
             <div class="notice notice-info">
-                <p><?php _e('This plugin extends CDN Enabler with Push Zone functionality for KeyCDN.', 'keycdn-push-enabler'); ?></p>
+                <p><?php _e('This plugin extends CDN Enabler with Push Zone functionality for KeyCDN.', 'keycdn-push-addon'); ?></p>
             </div>
             
             <?php if ($progress['is_active']): ?>
-            <div class="keycdn-push-enabler-progress-wrapper">
-                <h2><?php _e('File Push Progress', 'keycdn-push-enabler'); ?></h2>
-                <div class="keycdn-push-enabler-progress">
-                    <div class="keycdn-push-enabler-progress-bar" style="width: <?php echo esc_attr($progress['percentage']); ?>%"></div>
+            <div class="keycdn-push-addon-progress-wrapper">
+                <h2><?php _e('File Push Progress', 'keycdn-push-addon'); ?></h2>
+                <div class="keycdn-push-addon-progress">
+                    <div class="keycdn-push-addon-progress-bar" style="width: <?php echo esc_attr($progress['percentage']); ?>%"></div>
                 </div>
-                <div class="keycdn-push-enabler-progress-info">
+                <div class="keycdn-push-addon-progress-info">
                     <p>
                         <?php printf(
-                            __('Processed %1$d of %2$d files (%3$d%%)', 'keycdn-push-enabler'),
+                            __('Processed %1$d of %2$d files (%3$d%%)', 'keycdn-push-addon'),
                             $progress['processed'],
                             $progress['total'],
                             $progress['percentage']
                         ); ?>
                     </p>
                     <?php if ($progress['stalled']): ?>
-                    <p class="keycdn-push-enabler-stalled">
-                        <?php _e('The process appears to be stalled. You may want to reset it.', 'keycdn-push-enabler'); ?>
+                    <p class="keycdn-push-addon-stalled">
+                        <?php _e('The process appears to be stalled. You may want to reset it.', 'keycdn-push-addon'); ?>
                     </p>
                     <?php endif; ?>
                     <p>
                         <a href="<?php echo wp_nonce_url(admin_url('admin-post.php?action=keycdn_push_enabler_reset_push'), 'keycdn_push_enabler_reset_push'); ?>" class="button button-secondary">
-                            <?php _e('Reset Push Process', 'keycdn-push-enabler'); ?>
+                            <?php _e('Reset Push Process', 'keycdn-push-addon'); ?>
                         </a>
                     </p>
                 </div>
@@ -242,19 +339,19 @@ class KeyCDN_Push_Enabler_Addon_Admin {
             <form method="post" action="options.php">
                 <?php
                 settings_fields('keycdn_push_enabler');
-                do_settings_sections('keycdn-push-enabler');
+                do_settings_sections('keycdn-push-addon');
                 submit_button();
                 ?>
             </form>
             
-            <div class="keycdn-push-enabler-actions">
-                <h2><?php _e('Actions', 'keycdn-push-enabler'); ?></h2>
+            <div class="keycdn-push-addon-actions">
+                <h2><?php _e('Actions', 'keycdn-push-addon'); ?></h2>
                 <p>
                     <a href="<?php echo wp_nonce_url(admin_url('admin-post.php?action=keycdn_push_enabler_purge_cache'), 'keycdn_push_enabler_purge_cache'); ?>" class="button button-secondary">
-                        <?php _e('Purge CDN Cache', 'keycdn-push-enabler'); ?>
+                        <?php _e('Purge CDN Cache', 'keycdn-push-addon'); ?>
                     </a>
                     <a href="<?php echo wp_nonce_url(admin_url('admin-post.php?action=keycdn_push_enabler_push_all_files'), 'keycdn_push_enabler_push_all_files'); ?>" class="button button-secondary" <?php echo $progress['is_active'] ? 'disabled' : ''; ?>>
-                        <?php _e('Push All Files', 'keycdn-push-enabler'); ?>
+                        <?php _e('Push All Files', 'keycdn-push-addon'); ?>
                     </a>
                 </p>
             </div>
@@ -266,18 +363,18 @@ class KeyCDN_Push_Enabler_Addon_Admin {
      * Render API section
      */
     public function render_api_section() {
-        echo '<p>' . __('Configure your KeyCDN API credentials.', 'keycdn-push-enabler') . '</p>';
+        echo '<p>' . __('Configure your KeyCDN API credentials.', 'keycdn-push-addon') . '</p>';
         
         // Show notice if using environment variables or constants
         if (defined('KEYCDN_API_KEY') || getenv('KEYCDN_API_KEY')) {
             echo '<div class="notice notice-info inline"><p>';
-            _e('API Key is being loaded from a constant or environment variable.', 'keycdn-push-enabler');
+            _e('API Key is being loaded from a constant or environment variable.', 'keycdn-push-addon');
             echo '</p></div>';
         }
         
         if (defined('KEYCDN_PUSH_ZONE_ID') || getenv('KEYCDN_PUSH_ZONE_ID')) {
             echo '<div class="notice notice-info inline"><p>';
-            _e('Push Zone ID is being loaded from a constant or environment variable.', 'keycdn-push-enabler');
+            _e('Push Zone ID is being loaded from a constant or environment variable.', 'keycdn-push-addon');
             echo '</p></div>';
         }
     }
@@ -286,7 +383,96 @@ class KeyCDN_Push_Enabler_Addon_Admin {
      * Render push zone section
      */
     public function render_push_zone_section() {
-        echo '<p>' . __('Configure your Push Zone settings.', 'keycdn-push-enabler') . '</p>';
+        echo '<p>' . __('Configure your Push Zone settings.', 'keycdn-push-addon') . '</p>';
+    }
+    
+    /**
+     * Render directories section
+     */
+    public function render_directories_section() {
+        echo '<p>' . __('Configure which directories should be pushed to KeyCDN.', 'keycdn-push-addon') . '</p>';
+    }
+    
+    /**
+     * Render custom directories field
+     * 
+     * @param array $args Field arguments
+     */
+    public function render_custom_directories_field($args) {
+        $id = $args['id'];
+        $label = $args['label'];
+        $custom_directories = isset($this->options[$id]) ? $this->options[$id] : array();
+        
+        echo '<div class="keycdn-push-addon-custom-directories">';
+        echo '<p class="description">' . esc_html($label) . '</p>';
+        
+        // Existing directories
+        if (!empty($custom_directories)) {
+            echo '<div class="keycdn-push-addon-existing-directories">';
+            foreach ($custom_directories as $directory => $enabled) {
+                $this->render_directory_row($directory, $enabled);
+            }
+            echo '</div>';
+        }
+        
+        // Add new directory
+        echo '<div class="keycdn-push-addon-add-directory">';
+        echo '<input type="text" id="keycdn-push-addon-new-directory" class="regular-text" placeholder="' . esc_attr__('e.g., wp-content/custom-uploads', 'keycdn-push-addon') . '" />';
+        echo ' <button type="button" class="button" id="keycdn-push-addon-add-directory-btn">' . __('Add Directory', 'keycdn-push-addon') . '</button>';
+        echo '</div>';
+        
+        echo '</div>';
+        
+        // JavaScript for adding/removing directories
+        ?>
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            // Add directory
+            $('#keycdn-push-addon-add-directory-btn').on('click', function() {
+                var directory = $('#keycdn-push-addon-new-directory').val().trim();
+                if (directory) {
+                    // Check if directory already exists
+                    if ($('.keycdn-push-addon-existing-directories input[value="' + directory + '"]').length) {
+                        alert('<?php echo esc_js(__('This directory already exists in the list.', 'keycdn-push-addon')); ?>');
+                        return;
+                    }
+                    
+                    // Add directory to list
+                    var html = '<div class="keycdn-push-addon-directory-row">';
+                    html += '<input type="checkbox" name="keycdn_push_enabler[custom_directories][' + directory + ']" value="1" checked="checked" />';
+                    html += ' <input type="hidden" name="keycdn_push_enabler[custom_directories_keys][]" value="' + directory + '" />';
+                    html += ' <span class="directory-path">' + directory + '</span>';
+                    html += ' <a href="#" class="keycdn-push-addon-remove-directory"><?php echo esc_js(__('Remove', 'keycdn-push-addon')); ?></a>';
+                    html += '</div>';
+                    
+                    $('.keycdn-push-addon-existing-directories').append(html);
+                    $('#keycdn-push-addon-new-directory').val('');
+                }
+            });
+            
+            // Remove directory (for both existing and newly added rows)
+            $(document).on('click', '.keycdn-push-addon-remove-directory', function(e) {
+                e.preventDefault();
+                $(this).closest('.keycdn-push-addon-directory-row').remove();
+            });
+        });
+        </script>
+        <?php
+    }
+    
+    /**
+     * Render directory row
+     * 
+     * @param string $directory Directory path
+     * @param bool $enabled Whether the directory is enabled
+     */
+    private function render_directory_row($directory, $enabled) {
+        echo '<div class="keycdn-push-addon-directory-row">';
+        echo '<input type="checkbox" name="keycdn_push_enabler[custom_directories][' . esc_attr($directory) . ']" value="1" ' . checked(1, $enabled, false) . ' />';
+        echo ' <input type="hidden" name="keycdn_push_enabler[custom_directories_keys][]" value="' . esc_attr($directory) . '" />';
+        echo ' <span class="directory-path">' . esc_html($directory) . '</span>';
+        echo ' <a href="#" class="keycdn-push-addon-remove-directory">' . __('Remove', 'keycdn-push-addon') . '</a>';
+        echo '</div>';
     }
 
     /**
@@ -337,7 +523,7 @@ class KeyCDN_Push_Enabler_Addon_Admin {
      * @return array Modified plugin action links
      */
     public function add_settings_link($links) {
-        $settings_link = '<a href="' . admin_url('options-general.php?page=keycdn-push-enabler') . '">' . __('Settings', 'keycdn-push-enabler') . '</a>';
+        $settings_link = '<a href="' . admin_url('options-general.php?page=keycdn-push-addon') . '">' . __('Settings', 'keycdn-push-addon') . '</a>';
         array_unshift($links, $settings_link);
         return $links;
     }
@@ -347,15 +533,15 @@ class KeyCDN_Push_Enabler_Addon_Admin {
      */
     public function admin_notices() {
         if (isset($_GET['keycdn-cache-purged']) && $_GET['keycdn-cache-purged'] == 1) {
-            echo '<div class="notice notice-success is-dismissible"><p>' . __('KeyCDN cache purged successfully.', 'keycdn-push-enabler') . '</p></div>';
+            echo '<div class="notice notice-success is-dismissible"><p>' . __('KeyCDN cache purged successfully.', 'keycdn-push-addon') . '</p></div>';
         }
         
         if (isset($_GET['keycdn-push-started']) && $_GET['keycdn-push-started'] == 1) {
-            echo '<div class="notice notice-success is-dismissible"><p>' . __('Started pushing files to KeyCDN. This may take a while depending on the number of files.', 'keycdn-push-enabler') . '</p></div>';
+            echo '<div class="notice notice-success is-dismissible"><p>' . __('Started pushing files to KeyCDN. This may take a while depending on the number of files.', 'keycdn-push-addon') . '</p></div>';
         }
         
         if (isset($_GET['keycdn-push-reset']) && $_GET['keycdn-push-reset'] == 1) {
-            echo '<div class="notice notice-success is-dismissible"><p>' . __('Push process has been reset.', 'keycdn-push-enabler') . '</p></div>';
+            echo '<div class="notice notice-success is-dismissible"><p>' . __('Push process has been reset.', 'keycdn-push-addon') . '</p></div>';
         }
         
         if (isset($_GET['keycdn-error']) && !empty($_GET['keycdn-error'])) {
@@ -370,17 +556,17 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         // Check nonce and permissions
         check_admin_referer('keycdn_push_enabler_purge_cache');
         if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have sufficient permissions to perform this action.', 'keycdn-push-enabler'));
+            wp_die(__('You do not have sufficient permissions to perform this action.', 'keycdn-push-addon'));
         }
         
         // Check additional authorization
         if (!$this->check_additional_authorization()) {
-            wp_die(__('Additional authorization failed.', 'keycdn-push-enabler'));
+            wp_die(__('Additional authorization failed.', 'keycdn-push-addon'));
         }
         
         // Check if API is configured
         if (!$this->api_handler->is_api_configured()) {
-            wp_redirect(add_query_arg('keycdn-error', urlencode(__('API key or Push Zone ID not configured.', 'keycdn-push-enabler')), admin_url('options-general.php?page=keycdn-push-enabler')));
+            wp_redirect(add_query_arg('keycdn-error', urlencode(__('API key or Push Zone ID not configured.', 'keycdn-push-addon')), admin_url('options-general.php?page=keycdn-push-addon')));
             exit;
         }
         
@@ -388,12 +574,12 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         $result = $this->api_handler->purge_zone_cache();
         
         if (!$result) {
-            wp_redirect(add_query_arg('keycdn-error', urlencode(__('Error purging cache. Please check your API key and zone settings.', 'keycdn-push-enabler')), admin_url('options-general.php?page=keycdn-push-enabler')));
+            wp_redirect(add_query_arg('keycdn-error', urlencode(__('Error purging cache. Please check your API key and zone settings.', 'keycdn-push-addon')), admin_url('options-general.php?page=keycdn-push-addon')));
             exit;
         }
         
         // Redirect back to settings page with success message
-        wp_redirect(add_query_arg('keycdn-cache-purged', '1', admin_url('options-general.php?page=keycdn-push-enabler')));
+        wp_redirect(add_query_arg('keycdn-cache-purged', '1', admin_url('options-general.php?page=keycdn-push-addon')));
         exit;
     }
 
@@ -404,24 +590,24 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         // Check nonce and permissions
         check_admin_referer('keycdn_push_enabler_push_all_files');
         if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have sufficient permissions to perform this action.', 'keycdn-push-enabler'));
+            wp_die(__('You do not have sufficient permissions to perform this action.', 'keycdn-push-addon'));
         }
         
         // Check additional authorization
         if (!$this->check_additional_authorization()) {
-            wp_die(__('Additional authorization failed.', 'keycdn-push-enabler'));
+            wp_die(__('Additional authorization failed.', 'keycdn-push-addon'));
         }
         
         // Check if API is configured
         if (!$this->api_handler->is_api_configured()) {
-            wp_redirect(add_query_arg('keycdn-error', urlencode(__('API key or Push Zone ID not configured.', 'keycdn-push-enabler')), admin_url('options-general.php?page=keycdn-push-enabler')));
+            wp_redirect(add_query_arg('keycdn-error', urlencode(__('API key or Push Zone ID not configured.', 'keycdn-push-addon')), admin_url('options-general.php?page=keycdn-push-addon')));
             exit;
         }
         
         // Check if already pushing
         $progress = $this->cron_tasks->get_push_progress();
         if ($progress['is_active']) {
-            wp_redirect(add_query_arg('keycdn-error', urlencode(__('File push already in progress.', 'keycdn-push-enabler')), admin_url('options-general.php?page=keycdn-push-enabler')));
+            wp_redirect(add_query_arg('keycdn-error', urlencode(__('File push already in progress.', 'keycdn-push-addon')), admin_url('options-general.php?page=keycdn-push-addon')));
             exit;
         }
         
@@ -429,7 +615,7 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         $this->cron_tasks->schedule_push_static_files();
         
         // Redirect back to settings page with success message
-        wp_redirect(add_query_arg('keycdn-push-started', '1', admin_url('options-general.php?page=keycdn-push-enabler')));
+        wp_redirect(add_query_arg('keycdn-push-started', '1', admin_url('options-general.php?page=keycdn-push-addon')));
         exit;
     }
 
@@ -440,14 +626,14 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         // Check nonce and permissions
         check_admin_referer('keycdn_push_enabler_reset_push');
         if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have sufficient permissions to perform this action.', 'keycdn-push-enabler'));
+            wp_die(__('You do not have sufficient permissions to perform this action.', 'keycdn-push-addon'));
         }
         
         // Reset push process
         $this->cron_tasks->reset_push_process();
         
         // Redirect back to settings page with success message
-        wp_redirect(add_query_arg('keycdn-push-reset', '1', admin_url('options-general.php?page=keycdn-push-enabler')));
+        wp_redirect(add_query_arg('keycdn-push-reset', '1', admin_url('options-general.php?page=keycdn-push-addon')));
         exit;
     }
 
@@ -458,7 +644,7 @@ class KeyCDN_Push_Enabler_Addon_Admin {
      */
     public function enqueue_admin_scripts($hook) {
         // Only load on our settings page
-        if ($hook != 'settings_page_keycdn-push-enabler') {
+        if ($hook != 'settings_page_keycdn-push-addon') {
             return;
         }
         
@@ -470,7 +656,7 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         
         // Enqueue styles
         wp_enqueue_style(
-            'keycdn-push-enabler-admin',
+            'keycdn-push-addon-admin',
             keycdn_push_enabler_URL . 'assets/css/admin.css',
             array(),
             keycdn_push_enabler_VERSION
@@ -478,7 +664,7 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         
         // Enqueue scripts
         wp_enqueue_script(
-            'keycdn-push-enabler-admin',
+            'keycdn-push-addon-admin',
             keycdn_push_enabler_URL . 'assets/js/admin.js',
             array('jquery'),
             keycdn_push_enabler_VERSION,
@@ -487,14 +673,14 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         
         // Localize script
         wp_localize_script(
-            'keycdn-push-enabler-admin',
+            'keycdn-push-addon-admin',
             'keycdnPushAddon',
             array(
                 'ajaxUrl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('keycdn_push_enabler_ajax'),
                 'i18n' => array(
-                    'processed' => __('Processed %1$d of %2$d files (%3$d%%)', 'keycdn-push-enabler'),
-                    'stalled' => __('The process appears to be stalled. You may want to reset it.', 'keycdn-push-enabler')
+                    'processed' => __('Processed %1$d of %2$d files (%3$d%%)', 'keycdn-push-addon'),
+                    'stalled' => __('The process appears to be stalled. You may want to reset it.', 'keycdn-push-addon')
                 )
             )
         );
@@ -509,7 +695,7 @@ class KeyCDN_Push_Enabler_Addon_Admin {
         
         // Check permissions
         if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => __('You do not have permission to perform this action.', 'keycdn-push-enabler')));
+            wp_send_json_error(array('message' => __('You do not have permission to perform this action.', 'keycdn-push-addon')));
         }
         
         // Get progress

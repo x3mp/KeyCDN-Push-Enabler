@@ -44,3 +44,44 @@
 .keycdn-push-enabler-actions .button {
     margin-right: 10px;
 }
+
+/* Custom Directories Styles */
+.keycdn-push-enabler-custom-directories {
+    margin-top: 15px;
+}
+
+.keycdn-push-enabler-existing-directories {
+    margin-bottom: 15px;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    padding: 10px;
+    background: #f9f9f9;
+}
+
+.keycdn-push-enabler-directory-row {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px dotted #eee;
+}
+
+.keycdn-push-enabler-directory-row:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.keycdn-push-enabler-directory-row .directory-path {
+    margin-left: 5px;
+    font-family: monospace;
+}
+
+.keycdn-push-enabler-remove-directory {
+    color: #b32d2e;
+    text-decoration: none;
+    margin-left: 10px;
+}
+
+.keycdn-push-enabler-add-directory {
+    margin-top: 10px;
+}
