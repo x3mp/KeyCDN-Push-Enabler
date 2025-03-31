@@ -172,8 +172,43 @@ class KeyCDN_Push_Enabler_Addon_File_Handler {
             return false;
         }
 
-        // Full path in the CDN
-        $cdn_path = 'https://' . $cdn_url . '/wp-content/uploads/' . $relative_path;
+        // Get the uploads directory and base URL
+        $upload_dir = wp_upload_dir();
+        $upload_base_dir = basename($upload_dir['basedir']);
+        $upload_base_url = basename($upload_dir['baseurl']);
+        
+        // Get the proper path to the file in the CDN
+        // If the relative_path is from a custom upload directory, construct the URL accordingly
+        $full_path = trailingslashit($upload_dir['basedir']) . $relative_path;
+        
+        if (file_exists($full_path)) {
+            // This is a file directly in the uploads directory
+            $cdn_path = 'https://' . $cdn_url . '/' . $upload_base_url . '/' . $relative_path;
+        } else {
+            // This might be a file from a custom directory
+            // Check if it matches any of our custom directories
+            $options = get_option('keycdn_push_enabler', array());
+            $custom_directories = isset($options['custom_directories']) ? $options['custom_directories'] : array();
+            
+            $matched = false;
+            foreach ($custom_directories as $custom_dir => $enabled) {
+                if (!$enabled) {
+                    continue;
+                }
+                
+                $custom_full_path = ABSPATH . trailingslashit($custom_dir) . $relative_path;
+                if (file_exists($custom_full_path)) {
+                    $cdn_path = 'https://' . $cdn_url . '/' . $custom_dir . '/' . $relative_path;
+                    $matched = true;
+                    break;
+                }
+            }
+            
+            if (!$matched) {
+                // If no custom directory matched, use the default path
+                $cdn_path = 'https://' . $cdn_url . '/' . $upload_base_url . '/' . $relative_path;
+            }
+        }
         
         // Use API handler to purge URL
         return $this->api_handler->purge_url($cdn_path);

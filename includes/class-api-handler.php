@@ -96,7 +96,7 @@ class KeyCDN_Push_Enabler_Addon_API_Handler {
      * @return bool True if request is allowed, false if rate limited
      */
     private function check_rate_limit() {
-        $rate_limit_option = 'keycdn_push_enabler_rate_limit';
+        $rate_limit_option = 'keycdn_push_addon_rate_limit';
         $current_time = time();
         
         // Get existing rate limit data
@@ -255,41 +255,39 @@ class KeyCDN_Push_Enabler_Addon_API_Handler {
             return true;
         }
 
-        // KeyCDN API endpoint for purging URLs
-        $api_url = 'https://api.keycdn.com/zones/purgeurl/' . $this->get_push_zone_id() . '.json';
+        // For Push Zone, we need to send DELETE requests to each URL
+        $success = true;
         
-        // Prepare the request
-        $headers = array(
-            'Authorization' => $this->get_authorization_header()
-        );
-        
-        // Send request to KeyCDN API
-        $response = wp_remote_post($api_url, array(
-            'method' => 'DELETE',
-            'timeout' => 45,
-            'redirection' => 5,
-            'httpversion' => '1.0',
-            'blocking' => true,
-            'headers' => $headers,
-            'body' => array('urls' => $urls),
-            'cookies' => array()
-        ));
-        
-        if (is_wp_error($response)) {
-            $this->log_error('KeyCDN Purge Error', array('error' => $response->get_error_message()));
-            return false;
-        }
-        
-        $response_code = wp_remote_retrieve_response_code($response);
-        if ($response_code !== 200) {
-            $this->log_error('KeyCDN Purge Error', array(
-                'code' => $response_code,
-                'response' => wp_remote_retrieve_body($response)
+        foreach ($urls as $url) {
+            $response = wp_remote_request($url, array(
+                'method' => 'DELETE',
+                'timeout' => 45,
+                'redirection' => 5,
+                'httpversion' => '1.0',
+                'blocking' => true,
+                'cookies' => array()
             ));
-            return false;
+            
+            if (is_wp_error($response)) {
+                $this->log_error('KeyCDN Delete Error', array('error' => $response->get_error_message()));
+                $success = false;
+                continue;
+            }
+            
+            $response_code = wp_remote_retrieve_response_code($response);
+            if ($response_code < 200 || $response_code >= 300) {
+                // 404 is acceptable as it just means the file doesn't exist
+                if ($response_code !== 404) {
+                    $this->log_error('KeyCDN Delete Error', array(
+                        'code' => $response_code,
+                        'response' => wp_remote_retrieve_body($response)
+                    ));
+                    $success = false;
+                }
+            }
         }
         
-        return true;
+        return $success;
     }
 
     /**
@@ -317,21 +315,17 @@ class KeyCDN_Push_Enabler_Addon_API_Handler {
             return false;
         }
 
-        // KeyCDN API endpoint for purging zone
-        $api_url = 'https://api.keycdn.com/zones/purge/' . $this->get_push_zone_id() . '.json';
+        // For Push Zone, we'll send a special request to the zone URL
+        $push_zone_id = $this->get_push_zone_id();
+        $purge_url = 'https://' . $push_zone_id . '.kxcdn.com/*';
         
-        // Prepare the request
-        $headers = array(
-            'Authorization' => $this->get_authorization_header()
-        );
-        
-        // Send request to KeyCDN API
-        $response = wp_remote_get($api_url, array(
+        // Send request to purge the entire zone
+        $response = wp_remote_request($purge_url, array(
+            'method' => 'PURGE',  // KeyCDN uses PURGE method for purging cache
             'timeout' => 45,
             'redirection' => 5,
             'httpversion' => '1.0',
             'blocking' => true,
-            'headers' => $headers,
             'cookies' => array()
         ));
         
@@ -341,7 +335,7 @@ class KeyCDN_Push_Enabler_Addon_API_Handler {
         }
         
         $response_code = wp_remote_retrieve_response_code($response);
-        if ($response_code !== 200) {
+        if ($response_code < 200 || $response_code >= 300) {
             $this->log_error('KeyCDN Purge Zone Error', array(
                 'code' => $response_code,
                 'response' => wp_remote_retrieve_body($response)
